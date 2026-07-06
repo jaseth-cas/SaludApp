@@ -1,0 +1,7 @@
+<resources>
+    <string name="app_name">SaludApp</string>
+    <string name="logo">logo dentro de la app</string>
+
+    <string name="splash">bienvenida de la app</string>
+
+</resources>

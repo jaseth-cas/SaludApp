@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/main"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:background="#E6F0F9"
+    android:fitsSystemWindows="true">
+
+    <TextView
+        android:id="@+id/txtHistorialPeso"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Historial de Peso e IMC"
+        android:textColor="#2E4F7E"
+        android:textSize="22sp"
+        android:textStyle="bold"
+        android:gravity="center"
+        android:padding="24dp"/>
+
+    <ListView
+        android:id="@+id/lvHistorial"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:divider="@android:color/transparent"
+        android:dividerHeight="8dp"
+        android:padding="16dp"
+        android:clipToPadding="false"/>
+
+</LinearLayout>
