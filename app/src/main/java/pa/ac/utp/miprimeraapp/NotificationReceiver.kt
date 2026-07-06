@@ -12,23 +12,32 @@ class NotificationReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
         val medName = intent.getStringExtra("MED_NAME") ?: "Medicamento"
         val dose = intent.getStringExtra("DOSE") ?: ""
+        val medId = intent.getIntExtra("MED_ID", 0)
 
         val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         val channelId = "med_reminder_channel"
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val channel = NotificationChannel(channelId, "Recordatorios de Medicamentos", NotificationManager.IMPORTANCE_HIGH)
+            val channel = NotificationChannel(
+                channelId, 
+                "Recordatorios de Medicamentos", 
+                NotificationManager.IMPORTANCE_HIGH
+            ).apply {
+                description = "Canal para los recordatorios de medicamentos de SaludApp"
+                enableVibration(true)
+            }
             notificationManager.createNotificationChannel(channel)
         }
 
         val notification = NotificationCompat.Builder(context, channelId)
-            .setSmallIcon(android.R.drawable.ic_dialog_info)
+            .setSmallIcon(R.drawable.ic_medicina)
             .setContentTitle("¡Hora de su medicamento!")
             .setContentText("Tomar $medName - $dose")
             .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setCategory(NotificationCompat.CATEGORY_ALARM)
             .setAutoCancel(true)
             .build()
 
-        notificationManager.notify(System.currentTimeMillis().toInt(), notification)
+        notificationManager.notify(medId, notification)
     }
 }

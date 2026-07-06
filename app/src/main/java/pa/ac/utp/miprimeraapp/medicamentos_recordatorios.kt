@@ -9,6 +9,7 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
+import android.provider.Settings
 import android.widget.Toast
 import androidx.activity.enableEdgeToEdge
 import androidx.appcompat.app.AlertDialog
@@ -85,8 +86,8 @@ class medicamentos_recordatorios : AppCompatActivity() {
     private fun showTimePicker() {
         val picker = MaterialTimePicker.Builder()
             .setTimeFormat(TimeFormat.CLOCK_24H)
-            .setHour(12)
-            .setMinute(0)
+            .setHour(Calendar.getInstance().get(Calendar.HOUR_OF_DAY))
+            .setMinute(Calendar.getInstance().get(Calendar.MINUTE))
             .setTitleText("Seleccionar la hora")
             .setInputMode(MaterialTimePicker.INPUT_MODE_KEYBOARD)
             .build()
@@ -94,9 +95,7 @@ class medicamentos_recordatorios : AppCompatActivity() {
         picker.show(supportFragmentManager, "MATERIAL_TIME_PICKER")
 
         picker.addOnPositiveButtonClickListener {
-            val h = picker.hour
-            val m = picker.minute
-            etTime.setText(String.format("%02d:%02d", h, m))
+            etTime.setText(String.format("%02d:%02d", picker.hour, picker.minute))
         }
     }
 
@@ -132,10 +131,21 @@ class medicamentos_recordatorios : AppCompatActivity() {
             .setTitle("Eliminar recordatorio")
             .setMessage("¿Deseas eliminar el recordatorio de ${med.nombre}?")
             .setPositiveButton("Eliminar") { _, _ ->
+                cancelAlarm(med.id)
                 eliminarMedicamento(med.id, position)
             }
             .setNegativeButton("Cancelar", null)
             .show()
+    }
+
+    private fun cancelAlarm(medId: Int) {
+        val alarmManager = getSystemService(Context.ALARM_SERVICE) as AlarmManager
+        val intent = Intent(this, NotificationReceiver::class.java)
+        val pendingIntent = PendingIntent.getBroadcast(
+            this, medId, intent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+        alarmManager.cancel(pendingIntent)
     }
 
     private fun eliminarMedicamento(id: Int, position: Int) {
@@ -160,22 +170,31 @@ class medicamentos_recordatorios : AppCompatActivity() {
         }
 
         try {
-            scheduleNotification(name, dose, time)
-            saveMedToDb(name, dose, time, date)
-            Toast.makeText(this, "Recordatorio guardado", Toast.LENGTH_SHORT).show()
+            val db = dbHelper.writableDatabase
+            val values = android.content.ContentValues().apply {
+                put(DatabaseHelper.COL_MED_NOMBRE, name)
+                put(DatabaseHelper.COL_MED_DOSIS, dose)
+                put(DatabaseHelper.COL_MED_HORA, time)
+                put(DatabaseHelper.COL_MED_FECHA_FIN, date)
+            }
+            val newId = db.insert(DatabaseHelper.TABLE_MEDICAMENTOS, null, values)
             
-            etMedName.text?.clear()
-            etDose.text?.clear()
-            etTime.text?.clear()
-            etEndDate.text?.clear()
-            loadMedications()
-            
+            if (newId != -1L) {
+                scheduleNotification(newId.toInt(), name, dose, time)
+                Toast.makeText(this, "Recordatorio guardado", Toast.LENGTH_SHORT).show()
+                
+                etMedName.text?.clear()
+                etDose.text?.clear()
+                etTime.text?.clear()
+                etEndDate.text?.clear()
+                loadMedications()
+            }
         } catch (e: Exception) {
             Toast.makeText(this, "Error al guardar: ${e.message}", Toast.LENGTH_SHORT).show()
         }
     }
 
-    private fun scheduleNotification(medName: String, dose: String, timeStr: String) {
+    private fun scheduleNotification(medId: Int, medName: String, dose: String, timeStr: String) {
         val parts = timeStr.split(":")
         val hour = parts[0].toInt()
         val minute = parts[1].toInt()
@@ -184,7 +203,7 @@ class medicamentos_recordatorios : AppCompatActivity() {
         
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
             if (!alarmManager.canScheduleExactAlarms()) {
-                val intent = Intent(android.provider.Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM)
+                val intent = Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM)
                 startActivity(intent)
                 return
             }
@@ -193,10 +212,11 @@ class medicamentos_recordatorios : AppCompatActivity() {
         val intent = Intent(this, NotificationReceiver::class.java).apply {
             putExtra("MED_NAME", medName)
             putExtra("DOSE", dose)
+            putExtra("MED_ID", medId)
         }
 
         val pendingIntent = PendingIntent.getBroadcast(
-            this, System.currentTimeMillis().toInt(), intent,
+            this, medId, intent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
 
@@ -209,26 +229,14 @@ class medicamentos_recordatorios : AppCompatActivity() {
             }
         }
 
-        alarmManager.setExactAndAllowWhileIdle(
-            AlarmManager.RTC_WAKEUP,
-            calendar.timeInMillis,
-            pendingIntent
-        )
-    }
-
-    private fun saveMedToDb(name: String, dose: String, time: String, endDate: String) {
-        val db = dbHelper.writableDatabase
-        val values = android.content.ContentValues().apply {
-            put(DatabaseHelper.COL_MED_NOMBRE, name)
-            put(DatabaseHelper.COL_MED_DOSIS, dose)
-            put(DatabaseHelper.COL_MED_HORA, time)
-            put(DatabaseHelper.COL_MED_FECHA_FIN, endDate)
+        try {
+            alarmManager.setExactAndAllowWhileIdle(
+                AlarmManager.RTC_WAKEUP,
+                calendar.timeInMillis,
+                pendingIntent
+            )
+        } catch (e: SecurityException) {
+            Toast.makeText(this, "Error de seguridad con la alarma", Toast.LENGTH_SHORT).show()
         }
-        db.insert(DatabaseHelper.TABLE_MEDICAMENTOS, null, values)
-    }
-
-    override fun onResume() {
-        super.onResume()
-        loadMedications()
     }
 }
